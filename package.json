@@ -1,0 +1,9 @@
+{
+  "name": "blethermal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/protocol.test.mjs",
+    "serve": "python3 -m http.server 8000 -d web"
+  }
+}

@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AH-M2 Printer</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1b1b1b; --muted: #6b6b6b;
+    --line: #e2dfd8; --accent: #1f6feb; --accent-ink: #fff; --ok: #1a7f37; --warn: #b35900; --bad: #c62828;
+    --paper: #ffffff; --paper-shadow: rgba(0,0,0,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141414; --panel: #1e1e1e; --ink: #ececec; --muted: #9a9a9a;
+      --line: #333; --accent: #4c8dff; --accent-ink: #fff; --ok: #3fb950; --warn: #e3a341; --bad: #ff6b6b;
+      --paper: #fafafa; --paper-shadow: rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 17px; margin: 0 auto 0 0; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 10px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; border-radius: 7px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  label > span { min-width: 92px; color: var(--muted); font-size: 13px; }
+  input[type=range] { flex: 1; }
+  textarea, select, input[type=number], input[type=text] { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; }
+  textarea { width: 100%; min-height: 110px; resize: vertical; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs button[aria-selected=true] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.ok { color: var(--ok); border-color: var(--ok); }
+  .pill.warn { color: var(--warn); border-color: var(--warn); }
+  .pill.bad { color: var(--bad); border-color: var(--bad); }
+  .paper-wrap { background: var(--bg); border-radius: 8px; padding: 16px; display: flex; justify-content: center; overflow: auto; max-height: 70vh; }
+  #preview { background: var(--paper); box-shadow: 0 2px 10px var(--paper-shadow); width: 384px; max-width: 100%; image-rendering: pixelated; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; }
+  progress { width: 100%; height: 8px; }
+  #log { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); border-radius: 7px; padding: 8px; height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
+  .hidden { display: none !important; }
+  .notice { border-left: 3px solid var(--warn); padding: 8px 12px; background: var(--panel); margin: 16px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AH-M2 thermal printer</h1>
+  <span id="statePill" class="pill">disconnected</span>
+  <button id="connectBtn" class="primary">Connect</button>
+  <button id="disconnectBtn" disabled>Disconnect</button>
+</header>
+
+<div id="noBle" class="notice hidden">
+  This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android, and open the page over <code>http://localhost</code> or HTTPS.
+</div>
+
+<main>
+  <div>
+    <section>
+      <h2>Content</h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="text">Text</button>
+        <button role="tab" aria-selected="false" data-tab="image">Image</button>
+        <button role="tab" aria-selected="false" data-tab="test">Test pattern</button>
+      </div>
+
+      <div data-panel="text">
+        <textarea id="text">Hello from Web Bluetooth!
+AH-M2 · 384 dots · 203 dpi</textarea>
+        <label><span>Font size</span><input id="fontSize" type="range" min="12" max="120" value="32"><output id="fontSizeOut">32</output></label>
+        <label><span>Font</span>
+          <select id="fontFamily">
+            <option value="system-ui, sans-serif">Sans</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="ui-monospace, Menlo, monospace">Mono</option>
+          </select>
+          <select id="align"><option>left</option><option>center</option><option>right</option></select>
+          <label style="margin:0"><input id="bold" type="checkbox" checked> Bold</label>
+        </label>
+      </div>
+
+      <div data-panel="image" class="hidden">
+        <input id="file" type="file" accept="image/*">
+        <label><span>Rotate</span>
+          <select id="rotate"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select>
+        </label>
+        <p class="meta">Images are scaled to the full 384-dot width. You can also paste an image.</p>
+      </div>
+
+      <div data-panel="test" class="hidden">
+        <p class="meta">Starts with a staircase ruler: each step is one line lower, and the numbers count lines from the start of the job. The first number you can see on paper tells you how many lines the printer dropped. The test pattern always prints with no lead-in and no trimming.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Rendering</h2>
+      <label><span>Mode</span>
+        <select id="dither">
+          <option value="floyd">Dither (photos)</option>
+          <option value="none">Threshold (text)</option>
+        </select>
+      </label>
+      <label><span>Threshold</span><input id="threshold" type="range" min="1" max="254" value="128"><output id="thresholdOut">128</output></label>
+      <label><span>Brightness</span><input id="brightness" type="range" min="-100" max="100" value="0"><output id="brightnessOut">0</output></label>
+      <label><span>Dot gain</span><input id="dotGain" type="range" min="1" max="4" step="0.1" value="2.5"><output id="dotGainOut">2.5</output></label>
+      <p class="meta">Thermal dots spread, so dithered images print darker than their dot pattern. Dot gain lightens images before dithering to compensate. 1 turns it off. It only affects dither mode.</p>
+      <label><input id="invert" type="checkbox"> Invert</label>
+      <label><span>Preview</span>
+        <select id="previewMode">
+          <option value="sim">Simulated print</option>
+          <option value="dots">Exact dots</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Preview</h2>
+      <div class="paper-wrap"><canvas id="preview" width="384" height="100"></canvas></div>
+      <div class="meta" id="previewMeta"></div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Print</h2>
+      <label><span>Density</span><input id="density" type="range" min="1" max="7" value="4"><output id="densityOut">4</output></label>
+      <label><span>Copies</span><input id="copies" type="number" min="1" max="20" value="1" style="width:80px"></label>
+      <label><span>Lead-in</span><input id="leadIn" type="number" min="0" max="200" value="24" style="width:80px"> blank lines before the content</label>
+      <p class="meta">The paper motor needs about 16 lines to get up to speed, and anything printed before that comes out squashed.</p>
+      <label><span>Feed after</span><input id="feedAfter" type="number" min="0" max="400" value="80" style="width:80px"> lines past the last dot</label>
+      <label><input id="trim" type="checkbox" checked> Trim blank space above and below</label>
+      <p class="meta">8 lines = 1 mm. The tear edge is about 70 lines past the print head, so less than that leaves the end of the print inside.</p>
+      <label><span>Packet gap</span><input id="packetDelay" type="number" min="0" max="200" value="20" style="width:80px"> ms</label>
+      <p class="meta">If prints come out cut short, raise the packet gap. Keep this tab in the foreground while printing.</p>
+      <div class="row" style="margin-top:10px">
+        <button id="printBtn" class="primary" disabled>Print</button>
+        <button id="feedBtn" disabled>Feed</button>
+        <button id="cancelBtn" disabled>Cancel</button>
+      </div>
+      <progress id="progress" value="0" max="1" class="hidden" style="margin-top:12px"></progress>
+    </section>
+
+    <section>
+      <h2>Printer</h2>
+      <dl>
+        <dt>Name</dt><dd id="devName">–</dd>
+        <dt>MAC</dt><dd id="devMac">–</dd>
+        <dt>Model byte</dt><dd id="devModel">–</dd>
+        <dt>Auth</dt><dd id="devAuth">–</dd>
+        <dt>Battery</dt><dd id="stBattery">–</dd>
+        <dt>Paper</dt><dd id="stPaper">–</dd>
+        <dt>Charging</dt><dd id="stCharge">–</dd>
+        <dt>Temperature</dt><dd id="stHot">–</dd>
+        <dt>Density</dt><dd id="stDensity">–</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Log</h2>
+          <label style="margin-top:0"><input id="verbose" type="checkbox"> Show data packets and status</label>
+      <pre id="log"></pre>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import { AhM2Printer, rgbaToGray, grayToDots, packDots, trimBlankLines, dotGainCorrect, simulatePrint, PRINT_WIDTH, CHUNK_SIZE } from './printer.js';
+
+const $ = (id) => document.getElementById(id);
+const printer = new AhM2Printer();
+let image = null;
+let tab = 'text';
+let job = null; // packed bitmap for current preview
+
+if (!navigator.bluetooth) $('noBle').classList.remove('hidden');
+
+// ------------------------------------------------------------ log & state
+const logEl = $('log');
+function log(msg) {
+  if (!$('verbose').checked && (msg.startsWith('→ 55') || msg.endsWith('(status)'))) return;
+  const t = new Date().toLocaleTimeString();
+  logEl.textContent += `[${t}] ${msg}\n`;
+  if (logEl.textContent.length > 60000) logEl.textContent = logEl.textContent.slice(-40000);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+printer.addEventListener('log', (e) => log(e.detail));
+
+printer.addEventListener('state', (e) => {
+  const s = e.detail;
+  const pill = $('statePill');
+  pill.textContent = s;
+  pill.className = 'pill ' + ({ idle: 'ok', printing: 'warn', paused: 'warn', disconnected: '' }[s] ?? '');
+  const connected = s !== 'disconnected';
+  $('connectBtn').disabled = connected;
+  $('disconnectBtn').disabled = !connected;
+  $('printBtn').disabled = s !== 'idle';
+  $('feedBtn').disabled = s !== 'idle';
+  $('cancelBtn').disabled = !(s === 'printing' || s === 'paused');
+  if (!connected) for (const id of ['devMac', 'devModel', 'devAuth']) $(id).textContent = '–';
+});
+
+printer.addEventListener('info', (e) => {
+  $('devMac').textContent = e.detail.mac;
+  $('devModel').textContent = `0x${e.detail.model.toString(16).padStart(2, '0')}`;
+});
+
+printer.addEventListener('status', (e) => {
+  const s = e.detail;
+  $('stBattery').textContent = `${s.battery}%`;
+  $('stPaper').textContent = s.noPaper ? 'Out of paper' : 'OK';
+  $('stCharge').textContent = s.charging ? 'Yes' : 'No';
+  $('stHot').textContent = s.overheat ? 'Too hot' : 'OK';
+  $('stDensity').textContent = String(s.density);
+});
+
+// ------------------------------------------------------------ connection
+$('connectBtn').onclick = async () => {
+  try {
+    const name = await printer.connect();
+    $('devName').textContent = name || '(unnamed)';
+    $('devAuth').textContent = printer.authenticated ? 'Passed' : 'Not confirmed';
+  } catch (e) {
+    log(`Connect failed: ${e.message}`);
+  }
+};
+$('disconnectBtn').onclick = () => printer.disconnect();
+
+// ------------------------------------------------------------ rendering
+function renderSource() {
+  const c = document.createElement('canvas');
+  c.width = PRINT_WIDTH;
+  const ctx = c.getContext('2d');
+
+  if (tab === 'text') {
+    const size = +$('fontSize').value;
+    const font = `${$('bold').checked ? '700' : '400'} ${size}px ${$('fontFamily').value}`;
+    const lineH = Math.round(size * 1.25);
+    const pad = 8;
+    ctx.font = font;
+    const lines = [];
+    for (const para of $('text').value.split('\n')) {
+      if (!para) { lines.push(''); continue; }
+      let cur = '';
+      for (const word of para.split(/(\s+)/)) {
+        const tryLine = cur + word;
+        if (ctx.measureText(tryLine).width > PRINT_WIDTH - pad * 2 && cur.trim()) {
+          lines.push(cur.trimEnd());
+          cur = word.trimStart();
+        } else cur = tryLine;
+      }
+      lines.push(cur);
+    }
+    c.height = Math.max(lineH, lines.length * lineH + pad * 2);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.font = font; ctx.fillStyle = '#000'; ctx.textBaseline = 'top';
+    const align = $('align').value;
+    ctx.textAlign = align;
+    const x = align === 'left' ? pad : align === 'center' ? PRINT_WIDTH / 2 : PRINT_WIDTH - pad;
+    lines.forEach((l, i) => ctx.fillText(l, x, pad + i * lineH + Math.round((lineH - size) / 2)));
+  } else if (tab === 'image') {
+    if (!image) { c.height = 60; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); return c; }
+    const rot = +$('rotate').value;
+    const sw = rot % 180 ? image.height : image.width;
+    const sh = rot % 180 ? image.width : image.height;
+    c.height = Math.max(1, Math.round((sh * PRINT_WIDTH) / sw));
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate((rot * Math.PI) / 180);
+    const scale = PRINT_WIDTH / sw;
+    ctx.drawImage(image, (-image.width * scale) / 2, (-image.height * scale) / 2, image.width * scale, image.height * scale);
+  } else {
+    const R = 104; // ruler height
+    c.height = 320 + R;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#000';
+    // Staircase ruler: line y has ink at x = 4y..4y+3, so the first visible step = lines dropped.
+    for (let y = 0; y < 96; y++) ctx.fillRect(4 * y, y, 4, 1);
+    ctx.font = '700 13px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    for (let y = 0; y < 88; y += 8) {
+      ctx.fillRect(4 * y, y, 1, 10);
+      ctx.fillText(String(y), 4 * y + 3, y + 14);
+    }
+    ctx.fillRect(0, R - 2, PRINT_WIDTH, 1);
+    ctx.translate(0, R);
+    ctx.lineWidth = 2; ctx.strokeRect(1, 1, PRINT_WIDTH - 2, 318);
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = `rgb(${i * 17},${i * 17},${i * 17})`; ctx.fillRect(8 + i * 23, 12, 23, 60); }
+    ctx.fillStyle = '#000';
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 23; x++) if ((x + y) % 2) ctx.fillRect(8 + x * 16, 84 + y * 16, 16, 16);
+    ctx.font = '700 22px system-ui'; ctx.textBaseline = 'top';
+    ctx.fillText('AH-M2 test · 384 dots', 10, 222);
+    ctx.font = '14px ui-monospace, monospace';
+    ctx.fillText(new Date().toLocaleString(), 10, 256);
+    for (let x = 0; x < PRINT_WIDTH; x += 8) ctx.fillRect(x, 290, 1, x % 64 ? 8 : 20);
+  }
+  return c;
+}
+
+const feedLines = () => Math.max(0, Math.round(+$('feedAfter').value || 0));
+const isTest = () => tab === 'test';
+const printBody = () => ($('trim').checked && !isTest() ? trimBlankLines(job) : job);
+const leadLines = () => (isTest() ? 0 : Math.max(0, Math.round(+$('leadIn').value || 0)));
+
+function rebuild() {
+  const src = renderSource();
+  const { width: w, height: h } = src;
+  const data = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const gray = rgbaToGray(data, w, h);
+  const b = +$('brightness').value * 1.28;
+  if (b) for (let i = 0; i < gray.length; i++) gray[i] = gray[i] + b;
+  if ($('invert').checked) for (let i = 0; i < gray.length; i++) gray[i] = 255 - gray[i];
+  const dithered = $('dither').value === 'floyd';
+  const gain = +$('dotGain').value;
+  if (dithered) dotGainCorrect(gray, gain);
+  const dots = grayToDots(gray, w, h, {
+    threshold: +$('threshold').value,
+    dither: $('dither').value,
+  });
+  job = packDots(dots, w, h);
+  const sim = dithered && $('previewMode').value === 'sim' ? simulatePrint(dots, w, h, gain) : null;
+
+  const pv = $('preview');
+  pv.width = w; pv.height = h;
+  const pctx = pv.getContext('2d');
+  const out = pctx.createImageData(w, h);
+  for (let i = 0; i < dots.length; i++) {
+    const v = sim ? sim[i] : dots[i] ? 0 : 255;
+    out.data[i * 4] = out.data[i * 4 + 1] = out.data[i * 4 + 2] = v; out.data[i * 4 + 3] = 255;
+  }
+  pctx.putImageData(out, 0, 0);
+  const body = printBody();
+  const lines = body.length / 48 + feedLines() + leadLines();
+  const pkts = Math.ceil((body.length + (feedLines() + leadLines()) * 48) / CHUNK_SIZE);
+  $('previewMeta').textContent = `${w} × ${h} dots · prints ${(lines / 8).toFixed(1)} mm of paper including feed · ${pkts} packets`;
+}
+
+let pending = 0;
+const schedule = () => { cancelAnimationFrame(pending); pending = requestAnimationFrame(rebuild); };
+
+for (const id of ['text', 'fontSize', 'fontFamily', 'align', 'bold', 'rotate', 'dither', 'threshold', 'brightness', 'invert', 'dotGain', 'previewMode']) {
+  $(id).addEventListener('input', schedule);
+}
+for (const id of ['fontSize', 'threshold', 'brightness', 'density', 'dotGain']) {
+  $(id).addEventListener('input', () => ($(id + 'Out').textContent = $(id).value));
+}
+
+document.querySelectorAll('[role=tab]').forEach((t) => (t.onclick = () => {
+  tab = t.dataset.tab;
+  document.querySelectorAll('[role=tab]').forEach((x) => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== tab));
+  $('dither').value = tab === 'text' ? 'none' : 'floyd';
+  $('threshold').value = tab === 'text' ? 160 : 128;
+  $('thresholdOut').textContent = $('threshold').value;
+  schedule();
+}));
+
+function loadImageFile(f) {
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => { image = img; schedule(); };
+  img.src = URL.createObjectURL(f);
+}
+$('file').onchange = (e) => loadImageFile(e.target.files[0]);
+window.addEventListener('paste', (e) => {
+  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+  if (!item) return;
+  document.querySelector('[data-tab=image]').click();
+  loadImageFile(item.getAsFile());
+});
+
+// ------------------------------------------------------------ printing
+$('density').addEventListener('change', async () => {
+  if (printer.state === 'idle') await printer.setDensity(+$('density').value).catch((e) => log(e.message));
+});
+
+async function runJob(fn) {
+  const prog = $('progress');
+  prog.classList.remove('hidden'); prog.value = 0;
+  try {
+    await fn((sent, total) => { prog.max = total; prog.value = sent; });
+    log('Print complete.');
+  } catch (e) {
+    log(`Print failed: ${e.message}`);
+  } finally {
+    setTimeout(() => prog.classList.add('hidden'), 800);
+  }
+}
+
+function applyTransport() {
+  printer.packetDelayMs = Math.max(0, +$('packetDelay').value || 0);
+  try {
+    localStorage.setItem('ahm2.packetDelay', String(printer.packetDelayMs));
+    localStorage.setItem('ahm2.feedPastInk', $('feedAfter').value);
+    localStorage.setItem('ahm2.trim', $('trim').checked ? '1' : '0');
+    localStorage.setItem('ahm2.dotGain', $('dotGain').value);
+    localStorage.setItem('ahm2.leadLines', $('leadIn').value);
+  } catch {}
+}
+try {
+  const d = localStorage.getItem('ahm2.packetDelay');
+  if (d !== null) $('packetDelay').value = d;
+  const f = localStorage.getItem('ahm2.feedPastInk');
+  if (f !== null) $('feedAfter').value = f;
+  const tr = localStorage.getItem('ahm2.trim');
+  if (tr !== null) $('trim').checked = tr === '1';
+  const li = localStorage.getItem('ahm2.leadLines');
+  if (li !== null) $('leadIn').value = li;
+  const dg = localStorage.getItem('ahm2.dotGain');
+  if (dg !== null) { $('dotGain').value = dg; $('dotGainOut').textContent = dg; }
+} catch {}
+$('packetDelay').addEventListener('change', applyTransport);
+$('feedAfter').addEventListener('change', applyTransport);
+$('trim').addEventListener('change', applyTransport);
+$('dotGain').addEventListener('change', applyTransport);
+$('leadIn').addEventListener('change', applyTransport);
+$('leadIn').addEventListener('input', schedule);
+$('feedAfter').addEventListener('input', schedule);
+$('trim').addEventListener('input', schedule);
+applyTransport();
+
+$('printBtn').onclick = () => runJob(async (onProgress) => {
+  applyTransport();
+  rebuild();
+  const body = printBody();
+  if (!body.length) throw new Error('Nothing to print: the image is blank.');
+  await printer.setDensity(+$('density').value);
+  await printer.print(body, {
+    copies: +$('copies').value || 1,
+    feedLines: feedLines(),
+    leadLines: leadLines(),
+    onProgress,
+  });
+});
+$('feedBtn').onclick = () => runJob(() => printer.feed(Math.max(8, feedLines() || 80)));
+$('cancelBtn').onclick = () => printer.cancel();
+
+// Dither defaults suit text on first load
+$('dither').value = 'none';
+$('threshold').value = 160; $('thresholdOut').textContent = '160';
+rebuild();
+</script>
+</body>
+</html>
