@@ -99,7 +99,7 @@ AH-M2 · 384 dots · 203 dpi</textarea>
       </div>
 
       <div data-panel="test" class="hidden">
-        <p class="meta">Starts with a staircase ruler: each step is one line lower, and the numbers count lines from the start of the job. The first number you can see on paper tells you how many lines the printer dropped. The test pattern always prints with no lead-in and no trimming.</p>
+        <p class="meta">Starts with a staircase ruler: each step is one line lower, and the numbers count lines from the start of the job. The first clean, evenly spaced step shows where printing settles. The test pattern uses the lead-in setting, so set it to 0 to measure the raw printer. It is never trimmed.</p>
       </div>
     </section>
 
@@ -136,8 +136,14 @@ AH-M2 · 384 dots · 203 dpi</textarea>
       <h2>Print</h2>
       <label><span>Density</span><input id="density" type="range" min="1" max="7" value="4"><output id="densityOut">4</output></label>
       <label><span>Copies</span><input id="copies" type="number" min="1" max="20" value="1" style="width:80px"></label>
-      <label><span>Lead-in</span><input id="leadIn" type="number" min="0" max="200" value="24" style="width:80px"> blank lines before the content</label>
-      <p class="meta">The paper motor needs about 16 lines to get up to speed, and anything printed before that comes out squashed.</p>
+      <label><span>Lead-in</span><input id="leadIn" type="number" min="0" max="200" value="24" style="width:80px"> lines before the content</label>
+      <label><span>Lead-in style</span>
+        <select id="leadStyle">
+          <option value="blank">Blank</option>
+          <option value="dots">Edge dots</option>
+        </select>
+      </label>
+      <p class="meta">The paper motor needs about 16 lines to get up to speed, and anything printed before that comes out squashed. “Edge dots” puts one dot at the left edge of each lead-in line, in case the printer skips blank lines.</p>
       <label><span>Feed after</span><input id="feedAfter" type="number" min="0" max="400" value="80" style="width:80px"> lines past the last dot</label>
       <label><input id="trim" type="checkbox" checked> Trim blank space above and below</label>
       <p class="meta">8 lines = 1 mm. The tear edge is about 70 lines past the print head, so less than that leaves the end of the print inside.</p>
@@ -309,7 +315,7 @@ function renderSource() {
 const feedLines = () => Math.max(0, Math.round(+$('feedAfter').value || 0));
 const isTest = () => tab === 'test';
 const printBody = () => ($('trim').checked && !isTest() ? trimBlankLines(job) : job);
-const leadLines = () => (isTest() ? 0 : Math.max(0, Math.round(+$('leadIn').value || 0)));
+const leadLines = () => Math.max(0, Math.round(+$('leadIn').value || 0));
 
 function rebuild() {
   const src = renderSource();
@@ -404,6 +410,7 @@ function applyTransport() {
     localStorage.setItem('ahm2.trim', $('trim').checked ? '1' : '0');
     localStorage.setItem('ahm2.dotGain', $('dotGain').value);
     localStorage.setItem('ahm2.leadLines', $('leadIn').value);
+    localStorage.setItem('ahm2.leadStyle', $('leadStyle').value);
   } catch {}
 }
 try {
@@ -413,6 +420,8 @@ try {
   if (f !== null) $('feedAfter').value = f;
   const tr = localStorage.getItem('ahm2.trim');
   if (tr !== null) $('trim').checked = tr === '1';
+  const ls = localStorage.getItem('ahm2.leadStyle');
+  if (ls) $('leadStyle').value = ls;
   const li = localStorage.getItem('ahm2.leadLines');
   if (li !== null) $('leadIn').value = li;
   const dg = localStorage.getItem('ahm2.dotGain');
@@ -423,6 +432,7 @@ $('feedAfter').addEventListener('change', applyTransport);
 $('trim').addEventListener('change', applyTransport);
 $('dotGain').addEventListener('change', applyTransport);
 $('leadIn').addEventListener('change', applyTransport);
+$('leadStyle').addEventListener('change', applyTransport);
 $('leadIn').addEventListener('input', schedule);
 $('feedAfter').addEventListener('input', schedule);
 $('trim').addEventListener('input', schedule);
@@ -438,6 +448,7 @@ $('printBtn').onclick = () => runJob(async (onProgress) => {
     copies: +$('copies').value || 1,
     feedLines: feedLines(),
     leadLines: leadLines(),
+    leadDots: $('leadStyle').value === 'dots',
     onProgress,
   });
 });

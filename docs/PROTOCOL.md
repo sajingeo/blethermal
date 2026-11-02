@@ -160,7 +160,7 @@ Rules:
 * **Copies on the AH-M2.** The bitmap itself is repeated, with **2304 blank bytes** (48 blank lines) between copies. `NN` stays `00`.
 * **Cancel.** Send `5A 04 TT TT 01 00…` and stop sending data.
 * **Feed.** Type-1 printers have no feed command. Print blank lines instead. On the AH-M2 the tear-off edge is about **69 lines (8.6 mm) past the print head**, measured by printing the same text with different trailing feeds. Anything printed in the last 69 lines of a job stays inside the printer. `web/index.html` trims blank lines from the image and then adds 80 lines after the last black dot.
-* **Start-up distortion.** The first ~16 lines of every job print squashed, because the paper motor is still getting up to speed. A test pattern with a line-numbered staircase showed lines 0–16 compressed and everything after them correct. `web/index.html` therefore puts 24 blank lines in front of the content by default.
+* **Start-up distortion.** The first ~16 lines of every job print squashed, because the paper motor is still getting up to speed. A test pattern with a line-numbered staircase showed lines 0–16 compressed and everything after them correct. `web/index.html` therefore puts 24 blank lines in front of the content by default. The page can instead mark each lead-in line with a single dot at the left edge ("Edge dots"), in case the printer treats blank lines differently from printed ones. It is not yet confirmed which style this printer needs.
 
 The app's internal states are `Disconnected`, `Connected`, `Idle`, `Printing`, `PrintPaused`, `PrintingCompleted` and `Error`. Printing is allowed only in `Idle`.
 

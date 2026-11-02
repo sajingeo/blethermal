@@ -293,12 +293,15 @@ export function alignToChunk(bitmap) {
  * leadLines blank lines in front, and feedLines blank lines after so short prints
  * clear the tear-off edge.
  */
-export function buildJob(bitmap, copies = 1, feedLines = 0, leadLines = 0) {
+export function buildJob(bitmap, copies = 1, feedLines = 0, leadLines = 0, leadDots = false) {
   const img = alignToChunk(bitmap);
   const n = Math.max(1, copies | 0);
   const lead = Math.max(0, leadLines | 0) * BYTES_PER_LINE;
   const tail = Math.max(0, feedLines | 0) * BYTES_PER_LINE;
   const out = new Uint8Array(lead + img.length * n + COPY_GAP_BYTES * (n - 1) + tail);
+  // Optionally mark each lead-in line with one dot at the left edge, so the printer
+  // treats them as printed lines rather than blank paper.
+  if (leadDots) for (let i = 0; i < lead; i += BYTES_PER_LINE) out[i] = 0x80;
   let o = lead;
   for (let c = 0; c < n; c++) {
     if (c) o += COPY_GAP_BYTES;
@@ -495,9 +498,9 @@ export class AhM2Printer extends EventTarget {
    * Flow: 5A 04 start → 55 data packets → printer sends 5A 06 → 5A 04 end.
    * The printer may send 5A 08 to pause, then 5A 05 <index> to resume.
    */
-  print(bitmap, { copies = 1, feedLines = 0, leadLines = 0, onProgress } = {}) {
+  print(bitmap, { copies = 1, feedLines = 0, leadLines = 0, leadDots = false, onProgress } = {}) {
     if (this.state !== 'idle') return Promise.reject(new Error(`Printer is ${this.state}, not idle`));
-    const data = buildJob(bitmap, copies, feedLines, leadLines);
+    const data = buildJob(bitmap, copies, feedLines, leadLines, leadDots);
     const total = data.length / CHUNK_SIZE;
     if (total > 0xffff) return Promise.reject(new Error('Job too long'));
 

@@ -71,6 +71,9 @@ assert.equal(P.buildJob(new Uint8Array(96).fill(1), 3).length, 96 * 3 + 2304 * 2
 const led = P.buildJob(new Uint8Array(96).fill(1), 1, 0, 16);
 assert.equal(led.length, 16 * 48 + 96);
 assert.ok(led.slice(0, 16 * 48).every((b) => b === 0)); assert.equal(led[16 * 48], 1);
+const dotted = P.buildJob(new Uint8Array(96).fill(1), 1, 0, 4, true);
+assert.deepEqual([0, 48, 96, 144].map((i) => dotted[i]), [0x80, 0x80, 0x80, 0x80]);
+assert.equal(dotted.slice(0, 4 * 48).reduce((a, b) => a + (b ? 1 : 0), 0), 4);
 const fed = P.buildJob(new Uint8Array(96).fill(1), 1, 80);
 assert.equal(fed.length, 96 + 80 * 48);
 assert.ok(fed.slice(96).every((b) => b === 0));
