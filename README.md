@@ -15,9 +15,16 @@ Its print head is 384 dots wide. The official app is Funny Print.
 * `web/printer.js` is the protocol module. It has no dependencies and works as an ES module in the browser.
 * `test/protocol.test.mjs` holds Node tests for the CRC, packet builders, bitmap packing and notification parser.
 
-## Run
+## Use it
 
-Web Bluetooth needs Chrome or Edge on desktop or Android, and a secure context. `localhost` counts as secure.
+Open **https://sajingeo.github.io/blethermal/** in Chrome or Edge, on desktop or Android.
+Turn the printer on, click **Connect** and pick `AH-M2`.
+
+The page is plain HTML and JavaScript with no build step. GitHub Pages publishes the `web/` folder on every push to `main`, after the protocol tests pass.
+
+## Run locally
+
+Web Bluetooth needs Chrome or Edge, and a secure context. `localhost` counts as secure, as does GitHub Pages' HTTPS.
 
 ```bash
 npm run serve        # serves web/ at http://localhost:8000
